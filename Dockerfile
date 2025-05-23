@@ -13,7 +13,7 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 
 WORKDIR /home/appuser/app
-COPY --from=builder /app/target/safeyard-*.jar app.jar
+COPY --from=builder /app/target/mottu-patio-0.0.1-SNAPSHOT.jar app.jar
 
 EXPOSE 8080
 
