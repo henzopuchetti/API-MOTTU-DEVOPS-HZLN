@@ -1,0 +1,219 @@
+#Comandos da maquina virtual
+
+#Criação da Vm Linux no Azure via CLI:
+
+az vm create \
+  --resource-group Challenge \
+  --name Cll-Devops \
+  --image Ubuntu2204 \
+  --admin-username henzobp \
+  --authentication-type password \
+  --admin-password 'Henzo100905@' \
+  --size Standard_B1s
+
+#Abrir as portas da VM:
+# Porta 22 - SSH
+az network nsg rule create \
+  --resource-group Challenge \
+  --nsg-name Cll-DevopsNSG \
+  --name Allow-SSH \
+  --priority 1001 \
+  --direction Inbound \
+  --access Allow \
+  --protocol Tcp \
+  --destination-port-range 22
+
+# Porta 8080 - Acesso à aplicação Java
+az network nsg rule create \
+  --resource-group Challenge \
+  --nsg-name Cll-DevopsNSG \
+  --name Allow-App \
+  --priority 1002 \
+  --direction Inbound \
+  --access Allow \
+  --protocol Tcp \
+  --destination-port-range 8080
+
+#Porta 1521 - Banco H2 (caso precise)
+az network nsg rule create \
+  --resource-group Challenge \
+  --nsg-name Cll-DevopsNSG \
+  --name Allow-H2 \
+  --priority 1003 \
+  --direction Inbound \
+  --access Allow \
+  --protocol Tcp \
+  --destination-port-ranges 1521 \
+  --source-address-prefixes '*' \
+  --source-port-ranges '*'
+
+# Porta 9092 - TCP H2 Database Access
+az network nsg rule create \
+  --resource-group Challenge \
+  --nsg-name Cll-DevopsNSG \
+  --name Allow-H2-TCP \
+  --priority 1004 \
+  --direction Inbound \
+  --access Allow \
+  --protocol Tcp \
+  --destination-port-range 9092 \
+  --source-address-prefixes '*' \
+  --destination-address-prefixes '*' \
+  --description "Permitir acesso TCP ao H2 na porta 9092"
+
+# Porta 8082 - Web Console H2
+az network nsg rule create \
+  --resource-group Challenge \
+  --nsg-name Cll-DevopsNSG \
+  --name Allow-H2-WebConsole \
+  --priority 1005 \
+  --direction Inbound \
+  --access Allow \
+  --protocol Tcp \
+  --destination-port-range 8082 \
+  --source-address-prefixes '*' \
+  --destination-address-prefixes '*' \
+  --description "Permitir acesso ao console web do H2 na porta 8082"
+
+#Confirmando se realmente as portas foram abertas:
+az network nsg rule list \
+  --resource-group Challenge \
+  --nsg-name Cll-DevopsNSG \
+  --output table
+
+#antes de acessar a VM faça isso para n dar erro por causa do IP:
+ssh-keygen -R 4.201.226.253
+
+#Acessar a VM:
+ssh henzobp@4.201.226.253  #Ip da VM
+
+# Instalando Docker na Vm:
+sudo apt update
+sudo apt install -y docker.io
+
+# Habilitar e iniciar o Docker
+sudo systemctl enable docker
+sudo systemctl start docker
+
+# Criar usuário para rodar a aplicação sem privilégio
+sudo useradd -m appuser
+sudo usermod -aG docker appuser
+
+# Rodando o Container H2
+sudo docker run -d \
+  --name h2-db \
+  -p 9092:9092 \
+  -p 8082:8082 \
+  -e H2_OPTIONS="-ifNotExists" \
+  oscarfonts/h2
+
+#Clonar meu repositorio Java
+git clone https://github.com/henzopuchetti/API-MOTTU-DEVOPS-HZLN.git
+
+# Entrar no repositorio:
+cd API-MOTTU-DEVOPS-HZLN
+
+# Buildar e rodar a imagem Java em background:
+sudo docker build -t mottu-java-api .
+
+#Rodar o projeto:
+sudo docker run -d \
+  --name mottu-api \
+  -p 8080:8080 \
+  mottu-java-api
+
+#Verificando os Containers e se estão rodando:
+sudo docker ps
+
+#O comando para deletar a VM está no final do arquivo.
+
+#PARTE DE TESTES
+
+#Abrir a Url do console do banco:
+http://4.201.226.253:8080/h2-console
+
+#Dados do login:
+JDBC URL: jdbc:h2:file:~/testdb
+User Name: henzobp
+Password: Henzo100905@
+Apertar em conect
+
+#ir na tabela Patio e apertar RUN para mostrar que ja tem os 5 Inserts
+
+#Ir no Postman fazer o FLUXO da api completo:
+PATIO:
+POST:
+http://4.201.226.253:8080/api/patios
+{
+    "nome": "Patio da VP",
+    "endereco": "Rua das Flores, 123",
+    "capacidade": 30
+}
+
+#Depois disso va no Console do H2 para mostrar que realmente colocou no banco:
+
+GET:
+http://4.201.226.253:8080/api/patios
+
+PUT:
+http://4.201.226.253:8080/api/patios/6
+{
+    "nome": "Patio da VP",
+    "endereco": "Rua das Flores, 123",
+    "capacidade": 50
+}
+
+MOTOS:
+POST:
+http://4.201.226.253:8080/api/motos
+{
+  "placa": "ABC1234",
+  "modelo": "Honda azul",
+  "cor": "azul",
+  "ano": 2025,
+  "patioId": 6
+}
+
+GET:
+http://4.201.226.253:8080/api/motos
+
+PUT:
+http://4.201.226.253:8080/api/motos/1
+{
+  "placa": "ABC1234",
+  "modelo": "Honda azul",
+  "cor": "azul",
+  "ano": 2024,
+  "patioId": 6
+}
+
+#Depois disso va no Console do H2 para mostrar que realmente colocou no banco:
+
+EVENTOLPR:
+http://4.201.226.253:8080/api/eventosLPR
+{
+  "tipoEvento": "ENTRADA",
+  "placa": "ABC1234",
+  "vaga": "A:1"
+}
+
+#Depois disso va no Console do H2 para mostrar que realmente colocou no banco:
+
+GET:
+http://4.201.226.253:8080/api/eventosLPR
+
+POST(saida):
+http://4.201.226.253:8080/api/eventosLPR
+{
+  "tipoEvento": "SAIDA",
+  "placa": "ABC1234"
+}
+
+
+
+#Deletar VM:
+az vm delete \
+  --resource-group Challenge \
+  --name Cll-Devops \
+  --yes \
+  --no-wait
